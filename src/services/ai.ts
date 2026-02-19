@@ -379,6 +379,89 @@ REQUIREMENTS:
             })),
         };
 
+        // ── POST-PROCESSING: Re-order Blanks & Sync Instructions ──
+        // Ensure blanks are physically ordered 1, 2, 3... in the code
+        if (scenario.codeTemplate) {
+            const regex = /___BLANK_(\d+)___/g;
+            let match;
+            const foundBlanks: { originalId: number; index: number; marker: string }[] = [];
+
+            while ((match = regex.exec(scenario.codeTemplate)) !== null) {
+                foundBlanks.push({
+                    originalId: parseInt(match[1]),
+                    index: match.index,
+                    marker: match[0]
+                });
+            }
+
+            // Sort by physical position (top to bottom)
+            foundBlanks.sort((a, b) => a.index - b.index);
+
+            // Create ID Mapping: Old ID -> New ID (1-based index)
+            const idMap = new Map<number, number>();
+            foundBlanks.forEach((b, i) => {
+                idMap.set(b.originalId, i + 1);
+            });
+
+            // Only modify if we found blanks
+            if (foundBlanks.length > 0) {
+                // 1. Rewrite Code Template with new markers
+                let newTemplate = scenario.codeTemplate;
+                let rebuilt = '';
+                let lastIdx = 0;
+
+                foundBlanks.forEach((b, i) => {
+                    const newMarker = `___BLANK_${i + 1}___`;
+                    rebuilt += scenario.codeTemplate.substring(lastIdx, b.index);
+                    rebuilt += newMarker;
+                    lastIdx = b.index + b.marker.length;
+                });
+                rebuilt += scenario.codeTemplate.substring(lastIdx);
+                scenario.codeTemplate = rebuilt;
+
+                // 2. Re-order and Update Steps
+                const newSteps = new Array(foundBlanks.length);
+
+                foundBlanks.forEach((b, i) => {
+                    const oldStepIdx = b.originalId - 1; // 0-indexed match
+                    const newStepIdx = i; // 0-indexed destination
+
+                    if (scenario.steps[oldStepIdx]) {
+                        const step = { ...scenario.steps[oldStepIdx] };
+                        step.id = `step_${newStepIdx + 1}`;
+
+                        // Update "At Blank X" in instruction text to "At Blank Y"
+                        const headerRegex = new RegExp(`At\\s+Blank\\s+${b.originalId}`, 'gi');
+                        step.instruction = step.instruction.replace(headerRegex, `At Blank ${newStepIdx + 1}`);
+
+                        newSteps[newStepIdx] = step;
+                    } else {
+                        // Fallback for mismatch
+                        newSteps[newStepIdx] = {
+                            id: `step_${newStepIdx + 1}`,
+                            instruction: "Missing step definition.",
+                            expectedAnswer: "???",
+                            outputSimulation: ""
+                        };
+                    }
+                });
+
+                scenario.steps = newSteps.filter(s => !!s);
+
+                // 3. Update Context Markdown (Left Panel)
+                if (scenario.context) {
+                    // Regex to replace "At Blank <OldID>" with "At Blank <NewID>"
+                    // We use a callback to handle swaps atomically
+                    const contextRegex = /At\s+Blank\s+(\d+)/gi;
+                    scenario.context = scenario.context.replace(contextRegex, (match, p1) => {
+                        const oldId = parseInt(p1);
+                        const newId = idMap.get(oldId);
+                        return newId ? `At Blank ${newId}` : match;
+                    });
+                }
+            }
+        }
+
         return scenario;
 
     } catch (error) {
