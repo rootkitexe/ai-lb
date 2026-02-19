@@ -217,9 +217,15 @@ The top-level "codeTemplate" is ONE SINGLE code block / script / config that con
 - Use numbered markers: ___BLANK_1___, ___BLANK_2___, ___BLANK_3___, etc.
 - There must be EXACTLY ${config.blanks} blank markers in the template — no more, no fewer.
 - ___BLANK_N___ corresponds to step N's expectedAnswer
-- CRITICAL ORDER RULE: Blanks MUST appear in STRICTLY ASCENDING order in the code template.
-  ___BLANK_1___ must come FIRST, then ___BLANK_2___ below it, then ___BLANK_3___, etc.
-  NEVER place ___BLANK_3___ above ___BLANK_1___ in the code. Write the code so that the logical flow follows blank order top-to-bottom.
+- CRITICAL ORDER RULE: Blanks MUST appear in STRICTLY ASCENDING PHYSICAL ORDER in the code template string.
+  When reading the code from top to bottom:
+  1. The FIRST blank marker you encounter MUST be ___BLANK_1___
+  2. The SECOND blank marker MUST be ___BLANK_2___
+  3. The THIRD blank marker MUST be ___BLANK_3___
+  ...and so on.
+  NEVER place ___BLANK_1___ after ___BLANK_3___ in the text.
+  If the logical flow of the code requires checking something at the end (like an exception handler), that step must be numbered LAST (e.g. Blank 5), not Blank 1.
+  Re-number your steps if necessary to ensure the physical order in the code is 1, 2, 3, 4, 5.
 - Each ___BLANK_N___ must be placed INLINE where the expectedAnswer goes. It replaces ONE expression, value, or short statement.
   NEVER use a blank to represent an entire function definition, class, or multi-line block.
 - The code template should be a REALISTIC, COMPLETE script or config file (20-50 lines)
@@ -227,6 +233,14 @@ The top-level "codeTemplate" is ONE SINGLE code block / script / config that con
 - Use \\n for newlines inside the template string
 - Do NOT put codeTemplate inside individual steps — it goes at the TOP LEVEL only
 - VALIDATION: Before outputting, mentally scan the template top-to-bottom and verify blanks appear as 1, 2, 3, … in that exact order.
+
+FINAL CHECKLIST BEFORE OUTPUTTING JSON:
+1. Did I generate EXACTLY ${config.blanks} blank markers?
+2. Are they numbered ___BLANK_1___, ___BLANK_2___, ... up to ___BLANK_${config.blanks}___?
+3. Are they in PHYSICAL ORDER (1, then 2, then 3) from top of code to bottom?
+4. Is ___BLANK_1___ matched with Step 1's instruction?
+5. Did I skip any numbers? (e.g. going from 1 to 3). If so, fix it immediately.
+6. Did I duplicate any numbers? (e.g. two ___BLANK_2___s). If so, fix it.
 
 codeTemplate EXAMPLE (Python, 5 blanks):
 "import functools\n\n___BLANK_1___\ndef load_data(data_path):\n    # Simulate data loading from disk\n    print(f\"Loading data from {data_path}\")\n    return [1, 2, 3]\n\ndef calculate_memory_gb(array):\n    return ___BLANK_2___\n\ndef upload_to_s3(file_path, bucket):\n    import boto3\n    s3 = boto3.client('s3')\n    config = boto3.s3.transfer.TransferConfig(multipart_threshold=1024*25)\n    extra_args = ___BLANK_3___\n    s3.upload_file(file_path, bucket, file_path, ExtraArgs=extra_args, Config=config)\n\ndef log_metric(metric_name, value, step):\n    ___BLANK_4___\n\nclass AWSProfileSwitcher:\n    def __init__(self, profile_name):\n        self.profile_name = profile_name\n    def __enter__(self):\n        ___BLANK_5___\n        return self"
