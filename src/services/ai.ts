@@ -332,7 +332,7 @@ REQUIREMENTS:
                 "model": "google/gemini-2.0-flash-001",
                 "messages": [
                     { role: 'system', content: systemPrompt },
-                    { role: 'user', content: \`Generate a \${config.blanks}-step \${config.topic} assessment at \${config.difficulty} level. Return ONLY valid JSON.\` }
+                    { role: 'user', content: `Generate a ${config.blanks}-step ${config.topic} assessment at ${config.difficulty} level. Return ONLY valid JSON.` }
                 ],
                 "temperature": 1.0,
                 "max_tokens": 4000
@@ -350,29 +350,29 @@ REQUIREMENTS:
         // Strip markdown code fences if present
         if (raw.startsWith('```')) {
             raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?\s*```$/, '');
-            }
+        }
 
         // Replace any actual newlines inside the JSON (outside of \n escape sequences) 
         // This handles cases where the AI puts real line breaks in strings
         let cleaned = raw.trim();
 
-            const generated = JSON.parse(cleaned);
+        const generated = JSON.parse(cleaned);
 
-            if(!generated.context || !Array.isArray(generated.steps) || generated.steps.length === 0) {
-                throw new Error("Invalid scenario structure returned by AI.");
-    }
+        if (!generated.context || !Array.isArray(generated.steps) || generated.steps.length === 0) {
+            throw new Error("Invalid scenario structure returned by AI.");
+        }
 
         // Assemble into a LogicScenario
         const scenario: LogicScenario = {
-        id: config.id,
-        title: config.title,
-        description: config.description,
-        difficulty: config.difficulty,
-        environment: config.environment,
-        context: generated.context,
-        codeTemplate: generated.codeTemplate || '',
-        steps: generated.steps.map((s: any, i: number) => ({
-            id: s.id || \`step_\${i + 1}\`,
+            id: config.id,
+            title: config.title,
+            description: config.description,
+            difficulty: config.difficulty,
+            environment: config.environment,
+            context: generated.context,
+            codeTemplate: generated.codeTemplate || '',
+            steps: generated.steps.map((s: any, i: number) => ({
+                id: s.id || `step_${i + 1}`,
                 instruction: s.instruction,
                 expectedAnswer: s.expectedAnswer,
                 outputSimulation: s.outputSimulation,
@@ -385,7 +385,7 @@ REQUIREMENTS:
             const regex = /___BLANK_(\d+)___/g;
             let match;
             const foundBlanks: { originalId: number; index: number; marker: string }[] = [];
-            
+
             while ((match = regex.exec(scenario.codeTemplate)) !== null) {
                 foundBlanks.push({
                     originalId: parseInt(match[1]),
@@ -411,7 +411,7 @@ REQUIREMENTS:
                 let lastIdx = 0;
 
                 foundBlanks.forEach((b, i) => {
-                    const newMarker = \`___BLANK_\${i + 1}___\`;
+                    const newMarker = `___BLANK_${i + 1}___`;
                     rebuilt += scenario.codeTemplate.substring(lastIdx, b.index);
                     rebuilt += newMarker;
                     lastIdx = b.index + b.marker.length;
@@ -425,12 +425,12 @@ REQUIREMENTS:
                 foundBlanks.forEach((b, i) => {
                     const newStepIdx = i; // 0-indexed destination
                     const newId = i + 1;  // 1-based index
-                    
+
                     // Search for the step that corresponds to this blank ID
                     // We look for "At Blank <OriginalID>" in the instruction
-                    const targetHeaderRegex = new RegExp(\`At\\s+Blank\\s+\${b.originalId}\`, 'i');
+                    const targetHeaderRegex = new RegExp(`At\\s+Blank\\s+${b.originalId}`, 'i');
                     let step = scenario.steps.find(s => targetHeaderRegex.test(s.instruction));
-                    
+
                     // Fallback: If AI messed up header text, try index-based matching
                     if (!step) {
                         step = scenario.steps[b.originalId - 1]; // Fallback to index
@@ -438,18 +438,18 @@ REQUIREMENTS:
 
                     if (step) {
                         const newStep = { ...step };
-                        newStep.id = \`step_\${newId}\`;
-                        
+                        newStep.id = `step_${newId}`;
+
                         // Update "At Blank X" in instruction text to "At Blank Y"
-                        const headerReplaceRegex = new RegExp(\`At\\s+Blank\\s+\${b.originalId}\`, 'gi');
-                        newStep.instruction = newStep.instruction.replace(headerReplaceRegex, \`At Blank \${newId}\`);
-                        
+                        const headerReplaceRegex = new RegExp(`At\\s+Blank\\s+${b.originalId}`, 'gi');
+                        newStep.instruction = newStep.instruction.replace(headerReplaceRegex, `At Blank ${newId}`);
+
                         newSteps[newStepIdx] = newStep;
                     } else {
                         // If totally missing, create a placeholder so the UI doesn't crash
                         newSteps[newStepIdx] = {
-                            id: \`step_\${newId}\`,
-                            instruction: \`Question for Blank \${newId} (Original \${b.originalId})\`,
+                            id: `step_${newId}`,
+                            instruction: `Question for Blank ${newId} (Original ${b.originalId})`,
                             expectedAnswer: "???",
                             outputSimulation: ""
                         };
@@ -466,7 +466,7 @@ REQUIREMENTS:
                     scenario.context = scenario.context.replace(contextRegex, (match, p1) => {
                         const oldId = parseInt(p1);
                         const newId = idMap.get(oldId);
-                        return newId ? \`At Blank \${newId}\` : match;
+                        return newId ? `At Blank ${newId}` : match;
                     });
                 }
             }
