@@ -243,13 +243,13 @@ FINAL CHECKLIST BEFORE OUTPUTTING JSON:
 6. Did I duplicate any numbers? (e.g. two ___BLANK_2___s). If so, fix it.
 
 codeTemplate EXAMPLE (Python, 5 blanks):
-"import functools\n\n___BLANK_1___\ndef load_data(data_path):\n    # Simulate data loading from disk\n    print(f\"Loading data from {data_path}\")\n    return [1, 2, 3]\n\ndef calculate_memory_gb(array):\n    return ___BLANK_2___\n\ndef upload_to_s3(file_path, bucket):\n    import boto3\n    s3 = boto3.client('s3')\n    config = boto3.s3.transfer.TransferConfig(multipart_threshold=1024*25)\n    extra_args = ___BLANK_3___\n    s3.upload_file(file_path, bucket, file_path, ExtraArgs=extra_args, Config=config)\n\ndef log_metric(metric_name, value, step):\n    ___BLANK_4___\n\nclass AWSProfileSwitcher:\n    def __init__(self, profile_name):\n        self.profile_name = profile_name\n    def __enter__(self):\n        ___BLANK_5___\n        return self"
+"import functools\\n\\n___BLANK_1___\\ndef load_data(data_path):\\n    # Simulate data loading from disk\\n    print(f\\"Loading data from {data_path}\\")\\n    return [1, 2, 3]\\n\\ndef calculate_memory_gb(array):\\n    return ___BLANK_2___\\n\\ndef upload_to_s3(file_path, bucket):\\n    import boto3\\n    s3 = boto3.client('s3')\\n    config = boto3.s3.transfer.TransferConfig(multipart_threshold=1024*25)\\n    extra_args = ___BLANK_3___\\n    s3.upload_file(file_path, bucket, file_path, ExtraArgs=extra_args, Config=config)\\n\\ndef log_metric(metric_name, value, step):\\n    ___BLANK_4___\\n\\nclass AWSProfileSwitcher:\\n    def __init__(self, profile_name):\\n        self.profile_name = profile_name\\n    def __enter__(self):\\n        ___BLANK_5___\\n        return self"
 
 Another EXAMPLE (Docker/CLI, 3 blanks):
-"FROM ___BLANK_1___\n\nWORKDIR /app\n\nCOPY package*.json ./\nRUN ___BLANK_2___\n\nCOPY . .\n\nEXPOSE 3000\nCMD [\"node\", \"___BLANK_3___\"]"
+"FROM ___BLANK_1___\\n\\nWORKDIR /app\\n\\nCOPY package*.json ./\\nRUN ___BLANK_2___\\n\\nCOPY . .\\n\\nEXPOSE 3000\\nCMD [\\"node\\", \\"___BLANK_3___\\"]"
 
 Another EXAMPLE (SQL, 3 blanks):
-"CREATE TABLE orders (\n    id SERIAL PRIMARY KEY,\n    customer_id INTEGER ___BLANK_1___,\n    total DECIMAL(10,2),\n    status VARCHAR(20) DEFAULT ___BLANK_2___\n);\n\nSELECT c.name, COUNT(o.id) as order_count\nFROM customers c\n___BLANK_3___\nGROUP BY c.name\nHAVING COUNT(o.id) > 5;"
+"CREATE TABLE orders (\\n    id SERIAL PRIMARY KEY,\\n    customer_id INTEGER ___BLANK_1___,\\n    total DECIMAL(10,2),\\n    status VARCHAR(20) DEFAULT ___BLANK_2___\\n);\\n\\nSELECT c.name, COUNT(o.id) as order_count\\nFROM customers c\\n___BLANK_3___\\nGROUP BY c.name\\nHAVING COUNT(o.id) > 5;"
 
 CONFIG:
 - Topic: ${config.topic}
@@ -332,7 +332,7 @@ REQUIREMENTS:
                 "model": "google/gemini-2.0-flash-001",
                 "messages": [
                     { role: 'system', content: systemPrompt },
-                    { role: 'user', content: `Generate a ${config.blanks}-step ${config.topic} assessment at ${config.difficulty} level. Return ONLY valid JSON.` }
+                    { role: 'user', content: \`Generate a \${config.blanks}-step \${config.topic} assessment at \${config.difficulty} level. Return ONLY valid JSON.\` }
                 ],
                 "temperature": 1.0,
                 "max_tokens": 4000
@@ -350,29 +350,29 @@ REQUIREMENTS:
         // Strip markdown code fences if present
         if (raw.startsWith('```')) {
             raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?\s*```$/, '');
-        }
+            }
 
         // Replace any actual newlines inside the JSON (outside of \n escape sequences) 
         // This handles cases where the AI puts real line breaks in strings
         let cleaned = raw.trim();
 
-        const generated = JSON.parse(cleaned);
+            const generated = JSON.parse(cleaned);
 
-        if (!generated.context || !Array.isArray(generated.steps) || generated.steps.length === 0) {
-            throw new Error("Invalid scenario structure returned by AI.");
-        }
+            if(!generated.context || !Array.isArray(generated.steps) || generated.steps.length === 0) {
+                throw new Error("Invalid scenario structure returned by AI.");
+    }
 
         // Assemble into a LogicScenario
         const scenario: LogicScenario = {
-            id: config.id,
-            title: config.title,
-            description: config.description,
-            difficulty: config.difficulty,
-            environment: config.environment,
-            context: generated.context,
-            codeTemplate: generated.codeTemplate || '',
-            steps: generated.steps.map((s: any, i: number) => ({
-                id: s.id || `step_${i + 1}`,
+        id: config.id,
+        title: config.title,
+        description: config.description,
+        difficulty: config.difficulty,
+        environment: config.environment,
+        context: generated.context,
+        codeTemplate: generated.codeTemplate || '',
+        steps: generated.steps.map((s: any, i: number) => ({
+            id: s.id || \`step_\${i + 1}\`,
                 instruction: s.instruction,
                 expectedAnswer: s.expectedAnswer,
                 outputSimulation: s.outputSimulation,
@@ -385,7 +385,7 @@ REQUIREMENTS:
             const regex = /___BLANK_(\d+)___/g;
             let match;
             const foundBlanks: { originalId: number; index: number; marker: string }[] = [];
-
+            
             while ((match = regex.exec(scenario.codeTemplate)) !== null) {
                 foundBlanks.push({
                     originalId: parseInt(match[1]),
@@ -411,7 +411,7 @@ REQUIREMENTS:
                 let lastIdx = 0;
 
                 foundBlanks.forEach((b, i) => {
-                    const newMarker = `___BLANK_${i + 1}___`;
+                    const newMarker = \`___BLANK_\${i + 1}___\`;
                     rebuilt += scenario.codeTemplate.substring(lastIdx, b.index);
                     rebuilt += newMarker;
                     lastIdx = b.index + b.marker.length;
@@ -419,27 +419,37 @@ REQUIREMENTS:
                 rebuilt += scenario.codeTemplate.substring(lastIdx);
                 scenario.codeTemplate = rebuilt;
 
-                // 2. Re-order and Update Steps
+                // 2. Re-order and Update Steps (CONTENT-BASED MATCHING)
                 const newSteps = new Array(foundBlanks.length);
 
                 foundBlanks.forEach((b, i) => {
-                    const oldStepIdx = b.originalId - 1; // 0-indexed match
                     const newStepIdx = i; // 0-indexed destination
+                    const newId = i + 1;  // 1-based index
+                    
+                    // Search for the step that corresponds to this blank ID
+                    // We look for "At Blank <OriginalID>" in the instruction
+                    const targetHeaderRegex = new RegExp(\`At\\s+Blank\\s+\${b.originalId}\`, 'i');
+                    let step = scenario.steps.find(s => targetHeaderRegex.test(s.instruction));
+                    
+                    // Fallback: If AI messed up header text, try index-based matching
+                    if (!step) {
+                        step = scenario.steps[b.originalId - 1]; // Fallback to index
+                    }
 
-                    if (scenario.steps[oldStepIdx]) {
-                        const step = { ...scenario.steps[oldStepIdx] };
-                        step.id = `step_${newStepIdx + 1}`;
-
+                    if (step) {
+                        const newStep = { ...step };
+                        newStep.id = \`step_\${newId}\`;
+                        
                         // Update "At Blank X" in instruction text to "At Blank Y"
-                        const headerRegex = new RegExp(`At\\s+Blank\\s+${b.originalId}`, 'gi');
-                        step.instruction = step.instruction.replace(headerRegex, `At Blank ${newStepIdx + 1}`);
-
-                        newSteps[newStepIdx] = step;
+                        const headerReplaceRegex = new RegExp(\`At\\s+Blank\\s+\${b.originalId}\`, 'gi');
+                        newStep.instruction = newStep.instruction.replace(headerReplaceRegex, \`At Blank \${newId}\`);
+                        
+                        newSteps[newStepIdx] = newStep;
                     } else {
-                        // Fallback for mismatch
+                        // If totally missing, create a placeholder so the UI doesn't crash
                         newSteps[newStepIdx] = {
-                            id: `step_${newStepIdx + 1}`,
-                            instruction: "Missing step definition.",
+                            id: \`step_\${newId}\`,
+                            instruction: \`Question for Blank \${newId} (Original \${b.originalId})\`,
                             expectedAnswer: "???",
                             outputSimulation: ""
                         };
@@ -456,7 +466,7 @@ REQUIREMENTS:
                     scenario.context = scenario.context.replace(contextRegex, (match, p1) => {
                         const oldId = parseInt(p1);
                         const newId = idMap.get(oldId);
-                        return newId ? `At Blank ${newId}` : match;
+                        return newId ? \`At Blank \${newId}\` : match;
                     });
                 }
             }
@@ -469,4 +479,3 @@ REQUIREMENTS:
         throw error;
     }
 }
-
