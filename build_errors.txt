@@ -1,0 +1,16 @@
+﻿src/App.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/App.tsx(2,39): error TS6133: 'CheckCircle2' is declared but its value is never read.
+src/App.tsx(2,53): error TS6133: 'AlertCircle' is declared but its value is never read.
+src/App.tsx(75,12): error TS6133: 'terminalHistory' is declared but its value is never read.
+src/components/AiInterviewer.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/AiInterviewer.tsx(2,15): error TS6133: 'User' is declared but its value is never read.
+src/components/AiInterviewer.tsx(2,21): error TS6133: 'Mic' is declared but its value is never read.
+src/components/LogicTerminal.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/LogicTerminal.tsx(2,36): error TS6133: 'Play' is declared but its value is never read.
+src/components/LogicTerminal.tsx(2,53): error TS6133: 'Check' is declared but its value is never read.
+src/components/LogicTerminal.tsx(2,60): error TS6133: 'XCircle' is declared but its value is never read.
+src/components/LogicTerminal.tsx(17,5): error TS6133: 'variables' is declared but its value is never read.
+src/components/LogicTerminal.tsx(18,5): error TS6133: 'onHistoryUpdate' is declared but its value is never read.
+src/components/LogicTerminal.tsx(63,13): error TS6133: 'isSuccess' is declared but its value is never read.
+src/components/LogicTerminal.tsx(79,17): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
