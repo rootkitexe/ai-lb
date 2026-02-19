@@ -12,12 +12,7 @@ const experienceOptions = [
     { value: 'Senior' as const, label: 'Senior (5+ yrs)', color: 'text-red-400 border-red-500/40 bg-red-500/10' },
 ];
 
-const topicSuggestions = [
-    'Docker Networking', 'Kubernetes Deployments', 'Terraform Infrastructure',
-    'AWS EC2 & VPC', 'CI/CD Pipelines', 'Linux Administration',
-    'Nginx Configuration', 'PostgreSQL Administration', 'Git Branching',
-    'Docker Compose', 'Helm Charts', 'Ansible Playbooks',
-];
+
 
 function difficultyFromExperience(exp: 'Junior' | 'Mid' | 'Senior'): 'Easy' | 'Medium' | 'Hard' {
     switch (exp) {
@@ -128,8 +123,8 @@ export default function OnboardingForm({ onComplete, isLoading }: OnboardingForm
                                     type="button"
                                     onClick={() => setExperience(opt.value)}
                                     className={`px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${experience === opt.value
-                                            ? opt.color
-                                            : 'border-slate-700 text-slate-400 bg-slate-800 hover:border-slate-600'
+                                        ? opt.color
+                                        : 'border-slate-700 text-slate-400 bg-slate-800 hover:border-slate-600'
                                         }`}
                                 >
                                     {opt.label}
@@ -161,22 +156,7 @@ export default function OnboardingForm({ onComplete, isLoading }: OnboardingForm
                         />
                         {errors.topic && <span className="text-red-400 text-xs mt-1">{errors.topic}</span>}
 
-                        {/* Quick-pick suggestions */}
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                            {topicSuggestions.map((s) => (
-                                <button
-                                    key={s}
-                                    type="button"
-                                    onClick={() => setTopic(s)}
-                                    className={`px-2 py-0.5 rounded text-[11px] transition-colors ${topic === s
-                                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                                            : 'bg-slate-800 text-slate-500 border border-slate-700 hover:text-slate-300'
-                                        }`}
-                                >
-                                    {s}
-                                </button>
-                            ))}
-                        </div>
+
                     </div>
 
                     {/* Submit */}
