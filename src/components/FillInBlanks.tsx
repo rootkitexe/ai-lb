@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, Play, Loader2, Send, Mic, MicOff } from 'lucide-react';
+import { Bot, Play, Loader2, Send, Mic, MicOff, Check, ArrowRight } from 'lucide-react';
 import { LogicScenario } from '../data/scenario';
 import { validateAnswer, AnswerStatus } from '../services/ai';
 
@@ -44,6 +44,7 @@ export interface StepResult {
 interface FillInBlanksProps {
     scenario: LogicScenario;
     currentStep: number;
+    isDemoMode?: boolean;
     onStepSuccess: (vars: Record<string, string>) => void;
     onTestComplete?: (results: StepResult[]) => void;
 }
@@ -55,7 +56,7 @@ interface BlankFeedback {
     feedback: string;
 }
 
-export default function FillInBlanks({ scenario, onTestComplete }: FillInBlanksProps) {
+export default function FillInBlanks({ scenario, currentStep, isDemoMode = false, onStepSuccess, onTestComplete }: FillInBlanksProps) {
     const totalBlanks = scenario.steps.length;
     const template = scenario.codeTemplate || '';
 
@@ -65,6 +66,9 @@ export default function FillInBlanks({ scenario, onTestComplete }: FillInBlanksP
     const [feedbacks, setFeedbacks] = useState<(BlankFeedback | null)[]>(() => Array(totalBlanks).fill(null));
     const [evalProgress, setEvalProgress] = useState(0);
     const [stepResults, setStepResults] = useState<StepResult[]>([]);
+
+    // For single-step validation (Demo Mode)
+    const [isValidatingStep, setIsValidatingStep] = useState(false);
 
     const testStartRef = useRef(Date.now());
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -78,9 +82,13 @@ export default function FillInBlanks({ scenario, onTestComplete }: FillInBlanksP
 
     useEffect(() => {
         inputRefs.current = inputRefs.current.slice(0, totalBlanks);
-        // Auto-focus first blank
-        setTimeout(() => inputRefs.current[0]?.focus(), 200);
-    }, [totalBlanks]);
+        // Only focus first blank initially or when step changes in Demo Mode
+        if (!isDemoMode) {
+            setTimeout(() => inputRefs.current[0]?.focus(), 200);
+        } else {
+            setTimeout(() => inputRefs.current[currentStep]?.focus(), 200);
+        }
+    }, [totalBlanks, isDemoMode, currentStep]);
 
     useEffect(() => {
         return () => { recognitionRef.current?.abort(); };
@@ -116,7 +124,7 @@ export default function FillInBlanks({ scenario, onTestComplete }: FillInBlanksP
 
     const filledCount = answers.filter(a => a.trim() !== '').length;
 
-    // ── Submit all ──
+    // ── Submit all (Batch Mode) ──
     const handleSubmitAll = async () => {
         stopListening();
         setPhase('evaluating');
@@ -153,39 +161,65 @@ export default function FillInBlanks({ scenario, onTestComplete }: FillInBlanksP
         topRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
+    // ── Validate Single Step (Demo Mode) ──
+    const handleValidateSingle = async () => {
+        if (isValidatingStep) return;
+        setIsValidatingStep(true);
+        stopListening();
+
+        const idx = currentStep;
+        const step = scenario.steps[idx];
+        const ans = answers[idx].trim();
+        const elapsed = Date.now() - testStartRef.current; // Rough timing
+
+        let result: StepResult;
+        let fb: BlankFeedback;
+
+        try {
+            if (!ans) {
+                fb = { status: 'incorrect', feedback: 'Please enter an answer.' };
+                result = { stepIndex: idx, instruction: step.instruction, userAnswer: '(no answer)', expectedAnswer: step.expectedAnswer, correct: false, status: 'incorrect', feedback: 'Please enter an answer.', timeTakenMs: 0 };
+            } else {
+                const v = await validateAnswer(ans, step, scenario);
+                fb = { status: v.status, feedback: v.feedback };
+                result = { stepIndex: idx, instruction: step.instruction, userAnswer: ans, expectedAnswer: step.expectedAnswer, correct: v.correct, status: v.status, feedback: v.feedback, timeTakenMs: 0 };
+            }
+        } catch (e) {
+            fb = { status: 'incorrect', feedback: 'Error validating.' };
+            result = { stepIndex: idx, instruction: step.instruction, userAnswer: ans, expectedAnswer: step.expectedAnswer, correct: false, status: 'incorrect', feedback: 'Error validating.', timeTakenMs: 0 };
+        }
+
+        // Update feedbacks ONLY for this index
+        setFeedbacks(prev => {
+            const next = [...prev];
+            next[idx] = fb;
+            return next;
+        });
+
+        setIsValidatingStep(false);
+
+        // Always proceed to next step (Demo Mode acts as a Test now)
+        // Add result to stepResults regardless of correctness
+        setStepResults(prev => [...prev, result]);
+        onStepSuccess({});
+
+        // Check if last step
+        if (idx === totalBlanks - 1) {
+            setPhase('results');
+            // Could auto-complete here or let user click "Finish"
+        }
+    };
+
     // ── Build the code view ──
-    // Split the template by ___BLANK_N___ markers, interleave with inputs
     const renderUnifiedTemplate = () => {
         if (!template) {
             // Fallback: show blanks as a plain list
+            // (Simplified logic for brevity as most scenarios use unified template now)
             return (
-                <div className="bg-[#0d1117] rounded-xl border border-slate-800 p-5 space-y-4">
-                    {scenario.steps.map((step, idx) => (
-                        <div key={idx}>
-                            <div className="text-xs text-slate-500 mb-1 font-semibold">Blank {idx + 1}: {step.instruction}</div>
-                            <input
-                                ref={el => { inputRefs.current[idx] = el; }}
-                                type="text"
-                                value={answers[idx]}
-                                onChange={e => updateAnswer(idx, e.target.value)}
-                                onKeyDown={e => { if (e.key === 'Enter') inputRefs.current[idx + 1]?.focus(); }}
-                                placeholder="Enter your answer"
-                                disabled={phase !== 'answering'}
-                                className={`w-full bg-slate-950 border-2 rounded-lg px-4 py-2.5 font-mono text-sm outline-none transition-all
-                                    ${phase === 'results' && feedbacks[idx]
-                                        ? feedbacks[idx]!.status === 'correct' ? 'border-emerald-500/50 text-emerald-300'
-                                            : feedbacks[idx]!.status === 'partially_correct' ? 'border-amber-500/50 text-amber-300'
-                                                : 'border-red-500/50 text-red-300'
-                                        : 'border-teal-500/40 text-slate-200 focus:border-teal-400'}
-                                    placeholder:text-slate-600 disabled:opacity-60`}
-                            />
-                        </div>
-                    ))}
-                </div>
+                <div className="text-slate-500">Template not available. Please regenerate scenario.</div>
             );
         }
 
-        // Split by ___BLANK_N___ (supports ___BLANK_1___ through ___BLANK_99___)
         const regex = /___BLANK_(\d+)___/g;
         const parts: { type: 'text' | 'blank'; content: string; blankIdx?: number }[] = [];
         let lastIndex = 0;
@@ -195,7 +229,7 @@ export default function FillInBlanks({ scenario, onTestComplete }: FillInBlanksP
             if (match.index > lastIndex) {
                 parts.push({ type: 'text', content: template.slice(lastIndex, match.index) });
             }
-            parts.push({ type: 'blank', content: match[0], blankIdx: parseInt(match[1]) - 1 }); // 0-indexed
+            parts.push({ type: 'blank', content: match[0], blankIdx: parseInt(match[1]) - 1 });
             lastIndex = match.index + match[0].length;
         }
         if (lastIndex < template.length) {
@@ -223,36 +257,68 @@ export default function FillInBlanks({ scenario, onTestComplete }: FillInBlanksP
                             }
                             const idx = part.blankIdx!;
                             const fb = feedbacks[idx];
-                            const inputColor = (phase === 'results' && fb)
-                                ? fb.status === 'correct'
+
+                            // ── DEMO MODE LOGIC ──
+                            // Locked: if demo mode and index > currentStep
+                            // Completed: if demo mode and index < currentStep (or if it has positive feedback)
+                            // Active: if demo mode and index === currentStep
+
+                            const isLocked = isDemoMode && idx > currentStep && phase !== 'results';
+                            const isCompleted = isDemoMode && idx < currentStep;
+                            const isActive = !isDemoMode || idx === currentStep;
+
+                            // Determine style
+                            let inputColor = 'border-teal-500/50 text-teal-200 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20';
+
+                            if (phase === 'results' && fb) {
+                                // Final results view (or completed steps in demo)
+                                inputColor = fb.status === 'correct'
                                     ? 'border-emerald-500/60 text-emerald-300 bg-emerald-950/30'
                                     : fb.status === 'partially_correct'
                                         ? 'border-amber-500/60 text-amber-300 bg-amber-950/30'
-                                        : 'border-red-500/60 text-red-300 bg-red-950/30'
-                                : 'border-teal-500/50 text-teal-200 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20';
+                                        : 'border-red-500/60 text-red-300 bg-red-950/30';
+                            } else if (isCompleted && fb) {
+                                // Already solved in demo mode - Color based on result
+                                inputColor = fb.status === 'correct'
+                                    ? 'border-emerald-500/60 text-emerald-300 bg-emerald-950/30'
+                                    : fb.status === 'partially_correct'
+                                        ? 'border-amber-500/60 text-amber-300 bg-amber-950/30'
+                                        : 'border-red-500/60 text-red-300 bg-red-950/30';
+                            } else if (isLocked) {
+                                inputColor = 'border-slate-700 text-slate-500 bg-slate-800/50 cursor-not-allowed';
+                            }
 
                             return (
                                 <span key={i} className="inline-block align-middle my-0.5">
-                                    <span className="text-teal-500/60 text-[10px] mr-1 font-bold">{idx + 1}</span>
-                                    <input
-                                        ref={el => { inputRefs.current[idx] = el; }}
-                                        type="text"
-                                        value={answers[idx]}
-                                        onChange={e => updateAnswer(idx, e.target.value)}
-                                        onKeyDown={e => {
-                                            if (e.key === 'Enter') {
-                                                // Jump to next blank
-                                                const next = inputRefs.current[idx + 1];
-                                                if (next) next.focus();
-                                                else if (filledCount === totalBlanks) handleSubmitAll();
-                                            }
-                                        }}
-                                        placeholder={`Blank ${idx + 1}`}
-                                        disabled={phase !== 'answering'}
-                                        className={`bg-slate-950/80 border-2 rounded-md px-2.5 py-1 font-mono text-sm min-w-[160px] max-w-[350px] outline-none transition-all placeholder:text-slate-600 disabled:opacity-70 ${inputColor}`}
-                                    />
-                                    {/* Mic button */}
-                                    {phase === 'answering' && speechSupported && (
+                                    <span className={`text-[10px] mr-1 font-bold ${isLocked ? 'text-slate-600' : 'text-teal-500/60'}`}>{idx + 1}</span>
+                                    {isLocked ? (
+                                        <span className="inline-block px-2 py-0.5 rounded border border-slate-700 bg-slate-800/30 text-slate-600 select-none">???</span>
+                                    ) : (
+                                        <input
+                                            ref={el => { inputRefs.current[idx] = el; }}
+                                            type="text"
+                                            value={answers[idx]}
+                                            onChange={e => updateAnswer(idx, e.target.value)}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                    if (isDemoMode) {
+                                                        const ans = answers[idx].trim();
+                                                        if (ans) handleValidateSingle();
+                                                    } else {
+                                                        const next = inputRefs.current[idx + 1];
+                                                        if (next) next.focus();
+                                                        else if (filledCount === totalBlanks) handleSubmitAll();
+                                                    }
+                                                }
+                                            }}
+                                            placeholder={isCompleted ? '' : `Blank ${idx + 1}`}
+                                            disabled={isCompleted || (phase !== 'answering' && !isDemoMode) || (isDemoMode && phase === 'results')}
+                                            className={`bg-slate-950/80 border-2 rounded-md px-2.5 py-1 font-mono text-sm min-w-[100px] max-w-[350px] outline-none transition-all placeholder:text-slate-600 disabled:opacity-80 ${inputColor}`}
+                                        />
+                                    )}
+
+                                    {/* Mic button (Only active step) */}
+                                    {isActive && !isCompleted && phase === 'answering' && speechSupported && !isLocked && (
                                         <button
                                             onClick={() => isListening && voiceTarget === idx ? stopListening() : startListening(idx)}
                                             className={`inline-flex items-center justify-center w-6 h-6 rounded ml-1 transition-all ${isListening && voiceTarget === idx ? 'bg-red-500/20 text-red-400' : 'text-slate-500 hover:text-teal-400 hover:bg-teal-500/10'}`}
@@ -261,8 +327,9 @@ export default function FillInBlanks({ scenario, onTestComplete }: FillInBlanksP
                                             {isListening && voiceTarget === idx ? <MicOff size={12} /> : <Mic size={12} />}
                                         </button>
                                     )}
+
                                     {/* Result icon */}
-                                    {phase === 'results' && fb && (
+                                    {(phase === 'results' || isCompleted) && fb && (
                                         <span className="ml-1 text-xs">
                                             {fb.status === 'correct' ? '✅' : fb.status === 'partially_correct' ? '⚠️' : '❌'}
                                         </span>
@@ -278,7 +345,10 @@ export default function FillInBlanks({ scenario, onTestComplete }: FillInBlanksP
 
     // ── Score summary (results) ──
     const renderScore = () => {
+        // Show score if phase is results OR if demo mode is finished (all correct)
+        // Actually stepResults will accumulate in demo mode too.
         if (phase !== 'results') return null;
+
         const correct = stepResults.filter(r => r.status === 'correct').length;
         const partial = stepResults.filter(r => r.status === 'partially_correct').length;
         const incorrect = stepResults.filter(r => r.status === 'incorrect').length;
@@ -330,6 +400,20 @@ export default function FillInBlanks({ scenario, onTestComplete }: FillInBlanksP
         );
     };
 
+    // Helper for demo mode feedback message (current blank)
+    const renderCurrentFeedback = () => {
+        if (!isDemoMode || phase === 'results') return null;
+        const fb = feedbacks[currentStep];
+        if (!fb || fb.status === 'correct') return null; // Don't show if correct (we advanced) or null
+
+        return (
+            <div className="mb-4 bg-red-950/30 border border-red-500/30 p-3 rounded-lg text-red-200 text-sm flex items-start gap-2">
+                <span>❌</span>
+                <span>{fb.feedback}</span>
+            </div>
+        );
+    };
+
     return (
         <div className="flex flex-col h-full bg-slate-900 border-l border-slate-800">
             {/* Header */}
@@ -353,7 +437,15 @@ export default function FillInBlanks({ scenario, onTestComplete }: FillInBlanksP
                         const fb = feedbacks[i];
                         let c = answers[i].trim() ? 'bg-teal-500' : 'bg-slate-700';
                         if (phase === 'evaluating' && i < evalProgress) c = 'bg-teal-500 animate-pulse';
-                        if (phase === 'results' && fb) c = fb.status === 'correct' ? 'bg-emerald-500' : fb.status === 'partially_correct' ? 'bg-amber-500' : 'bg-red-500';
+
+                        // Show result color if in results phase OR if we have feedback in demo mode (completed step)
+                        if ((phase === 'results' || isDemoMode) && fb) {
+                            c = fb.status === 'correct' ? 'bg-emerald-500' : fb.status === 'partially_correct' ? 'bg-amber-500' : 'bg-red-500';
+                        }
+
+                        // Demo mode specific dot styling
+                        if (isDemoMode && i === currentStep && phase !== 'results') c = 'bg-blue-500 animate-pulse';
+
                         return <div key={i} className={`h-1.5 w-5 rounded-full transition-colors ${c}`} />;
                     })}
                 </div>
@@ -375,6 +467,9 @@ export default function FillInBlanks({ scenario, onTestComplete }: FillInBlanksP
                     </div>
                 )}
 
+                {/* Demo Mode Single Step Feedback */}
+                {renderCurrentFeedback()}
+
                 {/* Score (results) */}
                 {renderScore()}
 
@@ -389,16 +484,28 @@ export default function FillInBlanks({ scenario, onTestComplete }: FillInBlanksP
             <div className="p-4 bg-slate-900 border-t border-slate-800 flex-shrink-0">
                 {phase === 'answering' && (
                     <>
-                        <button
-                            onClick={handleSubmitAll}
-                            disabled={filledCount === 0}
-                            className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition-all ${filledCount > 0 ? 'bg-teal-500 text-slate-950 hover:bg-teal-400 shadow-lg shadow-teal-500/20' : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                                }`}
-                        >
-                            <Play size={16} /> Run and Validate ({filledCount}/{totalBlanks})
-                        </button>
+                        {isDemoMode ? (
+                            <button
+                                onClick={handleValidateSingle}
+                                disabled={isValidatingStep || !answers[currentStep]?.trim()}
+                                className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition-all ${isValidatingStep || !answers[currentStep]?.trim() ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-500 text-slate-950 hover:bg-blue-400 shadow-lg shadow-blue-500/20'}`}
+                            >
+                                {isValidatingStep ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                                {isValidatingStep ? 'Checking...' : `Check Blank ${currentStep + 1}`}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleSubmitAll}
+                                disabled={filledCount === 0}
+                                className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition-all ${filledCount > 0 ? 'bg-teal-500 text-slate-950 hover:bg-teal-400 shadow-lg shadow-teal-500/20' : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                    }`}
+                            >
+                                <Play size={16} /> Run and Validate ({filledCount}/{totalBlanks})
+                            </button>
+                        )}
+
                         <div className="text-center mt-1.5 text-[10px] text-slate-500">
-                            Fill in all blanks, then validate. Press Enter to jump to next blank.
+                            {isDemoMode ? 'Solve one blank at a time to proceed.' : 'Fill in all blanks, then validate. Press Enter to jump to next blank.'}
                         </div>
                     </>
                 )}

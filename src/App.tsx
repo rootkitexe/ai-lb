@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Terminal, ChevronRight, Home, ArrowLeft, Container, Server, Sparkles, Loader2 } from 'lucide-react';
+import { Terminal, ChevronRight, Home, ArrowLeft, Container, Server, Sparkles, Loader2, PlayCircle } from 'lucide-react';
 import FillInBlanks from './components/FillInBlanks';
 import type { StepResult } from './components/FillInBlanks';
 import ProblemStatement from './components/ProblemStatement';
@@ -17,6 +17,7 @@ function App() {
     const [view, setView] = useState<AppView>('landing');
     const [activeScenario, setActiveScenario] = useState<LogicScenario>(scenarios[0]);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isDemoMode, setIsDemoMode] = useState(false);
 
     // User & test state
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -35,6 +36,7 @@ function App() {
     // ─── Landing Page Handlers ───────────────────────────────────────
     const handleStartScenario = (scenario: LogicScenario) => {
         setActiveScenario(scenario);
+        setIsDemoMode(false);
         setView('assessment');
     };
 
@@ -45,6 +47,7 @@ function App() {
             const config = aiScenarioConfigs[configIdx];
             const generated = await generateScenario(config);
             setActiveScenario(generated);
+            setIsDemoMode(false);
             setView('assessment');
         } catch (e) {
             console.error("Failed to generate scenario", e);
@@ -52,6 +55,11 @@ function App() {
         } finally {
             setIsGenerating(false);
         }
+    };
+
+    const handleStartTest = (demoMode: boolean = false) => {
+        setIsDemoMode(demoMode);
+        setView('onboarding');
     };
 
     // ─── Onboarding Handler ──────────────────────────────────────────
@@ -163,7 +171,8 @@ function App() {
                 <LandingPage
                     onStartScenario={handleStartScenario}
                     onStartAIScenario={handleStartAIScenario}
-                    onStartTest={() => setView('onboarding')}
+                    onStartTest={() => handleStartTest(false)}
+                    onStartDemo={() => handleStartTest(true)}
                     isGenerating={isGenerating}
                 />
             )}
@@ -176,6 +185,8 @@ function App() {
             {view === 'assessment' && (
                 <AssessmentView
                     scenario={activeScenario}
+                    isDemoMode={isDemoMode}
+                    currentStep={isDemoMode ? 0 : undefined}
                     onBack={() => setView('landing')}
                     onTestComplete={handleTestComplete}
                 />
@@ -224,10 +235,11 @@ interface LandingPageProps {
     onStartScenario: (s: LogicScenario) => void;
     onStartAIScenario: (idx: number) => void;
     onStartTest: () => void;
+    onStartDemo: () => void;
     isGenerating: boolean;
 }
 
-function LandingPage({ onStartScenario, onStartAIScenario, onStartTest, isGenerating }: LandingPageProps) {
+function LandingPage({ onStartScenario, onStartAIScenario, onStartTest, onStartDemo, isGenerating }: LandingPageProps) {
     return (
         <div className="container mx-auto px-4 py-12">
             <header className="mb-12 text-center">
@@ -236,14 +248,24 @@ function LandingPage({ onStartScenario, onStartAIScenario, onStartTest, isGenera
                 </h1>
                 <p className="text-slate-400 text-lg">Senior Engineering Competency Framework</p>
 
-                {/* CTA: Take AI Test */}
-                <button
-                    onClick={onStartTest}
-                    className="mt-6 inline-flex items-center gap-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-semibold px-6 py-3 rounded-lg hover:from-teal-400 hover:to-cyan-400 transition-all shadow-lg shadow-teal-500/20"
-                >
-                    <Sparkles size={18} />
-                    Take AI Assessment
-                </button>
+                {/* CTA: Take AI Test & Demo */}
+                <div className="flex flex-col items-center gap-3 mt-6">
+                    <button
+                        onClick={onStartTest}
+                        className="inline-flex items-center gap-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-semibold px-6 py-3 rounded-lg hover:from-teal-400 hover:to-cyan-400 transition-all shadow-lg shadow-teal-500/20"
+                    >
+                        <Sparkles size={18} />
+                        Take AI Assessment
+                    </button>
+
+                    <button
+                        onClick={onStartDemo}
+                        className="inline-flex items-center gap-2 bg-slate-800 text-teal-400 font-medium px-5 py-2.5 rounded-lg hover:bg-slate-700 hover:text-teal-300 transition-all border border-slate-700 hover:border-teal-500/30 text-sm"
+                    >
+                        <PlayCircle size={16} />
+                        Demo AI Assessment
+                    </button>
+                </div>
             </header>
 
             {/* Section: Practice Scenarios */}
@@ -352,17 +374,20 @@ function LandingPage({ onStartScenario, onStartAIScenario, onStartTest, isGenera
     );
 }
 
-function AssessmentView({ scenario, onBack, onTestComplete }: {
+function AssessmentView({ scenario, isDemoMode, currentStep: overrideStep, onBack, onTestComplete }: {
     scenario: LogicScenario;
+    isDemoMode: boolean;
+    currentStep?: number;
     onBack: () => void;
     onTestComplete?: (results: StepResult[]) => void;
 }) {
-    const [currentStep, setCurrentStep] = useState(0);
+    const [step, setStep] = useState(0);
+    const activeStep = isDemoMode ? step : undefined;
 
     const handleStepSuccess = (vars: Record<string, string>) => {
-        void vars; // unused but kept for interface compatibility
+        void vars;
         setTimeout(() => {
-            setCurrentStep(prev => prev + 1);
+            setStep(prev => prev + 1);
         }, 500);
     };
 
@@ -381,6 +406,11 @@ function AssessmentView({ scenario, onBack, onTestComplete }: {
                         <span className="text-slate-400">{scenario.difficulty}</span>
                         <ChevronRight size={14} className="mx-2 text-slate-600" />
                         <span className="text-slate-200">{scenario.title}</span>
+                        {isDemoMode && (
+                            <span className="ml-2 px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-400 text-xs border border-teal-500/20">
+                                Demo Mode
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -400,14 +430,19 @@ function AssessmentView({ scenario, onBack, onTestComplete }: {
 
                 {/* Left Panel: Problem Context (full height) */}
                 <div className="w-3/5 border-r border-slate-800 flex flex-col bg-[#0d1117] overflow-hidden">
-                    <ProblemStatement content={scenario.context} blanks={scenario.steps} />
+                    <ProblemStatement
+                        content={scenario.context}
+                        blanks={scenario.steps}
+                        visibleUntilBlank={isDemoMode ? step + 1 : undefined}
+                    />
                 </div>
 
                 {/* Right Panel: AI Interviewer (Chat) */}
                 <div className="w-2/5 bg-slate-900 flex flex-col relative min-w-[400px]">
                     <FillInBlanks
                         scenario={scenario}
-                        currentStep={currentStep}
+                        currentStep={step}
+                        isDemoMode={isDemoMode}
                         onStepSuccess={handleStepSuccess}
                         onTestComplete={onTestComplete}
                     />

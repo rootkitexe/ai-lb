@@ -241,6 +241,7 @@ FINAL CHECKLIST BEFORE OUTPUTTING JSON:
 4. Is ___BLANK_1___ matched with Step 1's instruction?
 5. Did I skip any numbers? (e.g. going from 1 to 3). If so, fix it immediately.
 6. Did I duplicate any numbers? (e.g. two ___BLANK_2___s). If so, fix it.
+7. CRITICAL: Does Step N correspond to a ___BLANK_N___ that ACTUALLY EXISTS in the code? Do not hallucinate steps for un-blanked code.
 
 codeTemplate EXAMPLE (Python, 5 blanks):
 "import functools\\n\\n___BLANK_1___\\ndef load_data(data_path):\\n    # Simulate data loading from disk\\n    print(f\\"Loading data from {data_path}\\")\\n    return [1, 2, 3]\\n\\ndef calculate_memory_gb(array):\\n    return ___BLANK_2___\\n\\ndef upload_to_s3(file_path, bucket):\\n    import boto3\\n    s3 = boto3.client('s3')\\n    config = boto3.s3.transfer.TransferConfig(multipart_threshold=1024*25)\\n    extra_args = ___BLANK_3___\\n    s3.upload_file(file_path, bucket, file_path, ExtraArgs=extra_args, Config=config)\\n\\ndef log_metric(metric_name, value, step):\\n    ___BLANK_4___\\n\\nclass AWSProfileSwitcher:\\n    def __init__(self, profile_name):\\n        self.profile_name = profile_name\\n    def __enter__(self):\\n        ___BLANK_5___\\n        return self"
@@ -428,7 +429,7 @@ REQUIREMENTS:
 
                     // Search for the step that corresponds to this blank ID
                     // We look for "At Blank <OriginalID>" in the instruction
-                    const targetHeaderRegex = new RegExp(`At\\s+Blank\\s+${b.originalId}`, 'i');
+                    const targetHeaderRegex = new RegExp(`At\\s+Blank\\s*[:#-]?\\s*${b.originalId}`, 'i');
                     let step = scenario.steps.find(s => targetHeaderRegex.test(s.instruction));
 
                     // Fallback: If AI messed up header text, try index-based matching
@@ -441,7 +442,7 @@ REQUIREMENTS:
                         newStep.id = `step_${newId}`;
 
                         // Update "At Blank X" in instruction text to "At Blank Y"
-                        const headerReplaceRegex = new RegExp(`At\\s+Blank\\s+${b.originalId}`, 'gi');
+                        const headerReplaceRegex = new RegExp(`At\\s+Blank\\s*[:#-]?\\s*${b.originalId}`, 'gi');
                         newStep.instruction = newStep.instruction.replace(headerReplaceRegex, `At Blank ${newId}`);
 
                         newSteps[newStepIdx] = newStep;
@@ -462,7 +463,7 @@ REQUIREMENTS:
                 if (scenario.context) {
                     // Regex to replace "At Blank <OldID>" with "At Blank <NewID>"
                     // We use a callback to handle swaps atomically
-                    const contextRegex = /At\s+Blank\s+(\d+)/gi;
+                    const contextRegex = /At\s+Blank\s*[:#-]?\s*(\d+)/gi;
                     scenario.context = scenario.context.replace(contextRegex, (match, p1) => {
                         const oldId = parseInt(p1);
                         const newId = idMap.get(oldId);

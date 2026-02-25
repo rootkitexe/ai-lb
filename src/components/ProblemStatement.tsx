@@ -4,6 +4,7 @@ import React from 'react';
 interface ProblemStatementProps {
     content: string;
     blanks?: { instruction: string }[];
+    visibleUntilBlank?: number; // For sequential revealing in Demo Mode
 }
 
 // Helper to process inline markdown (bold, code) and return React elements
@@ -40,14 +41,29 @@ function renderInline(text: string): React.ReactNode[] {
     return parts;
 }
 
-export default function ProblemStatement({ content, blanks }: ProblemStatementProps) {
+export default function ProblemStatement({ content, blanks, visibleUntilBlank }: ProblemStatementProps) {
     const renderContent = (text: string) => {
         const lines = text.split('\n');
         const elements: React.ReactNode[] = [];
         let i = 0;
+        let instructionCount = 0;
 
         while (i < lines.length) {
             const line = lines[i];
+
+            // ─── SEQUENTIAL REVEAL LOGIC (DEMO MODE) ───
+            if (visibleUntilBlank !== undefined) {
+                // Check if this line is an "At Blank N" instruction
+                // Flexible regex to match "At Blank 5", "**At Blank: 5**", etc.
+                const instructionMatch = line.match(/At\s+Blank\s*[:#-]?\s*\d+/i);
+                if (instructionMatch) {
+                    instructionCount++;
+                    // If we've reached an instruction beyond what we're allowed to see, STOP rendering
+                    if (instructionCount > visibleUntilBlank) {
+                        break;
+                    }
+                }
+            }
 
             // H1
             if (line.startsWith('# ')) {
@@ -76,9 +92,57 @@ export default function ProblemStatement({ content, blanks }: ProblemStatementPr
                 const alertLines: string[] = [];
                 i++; // skip the > [!TYPE] line
                 while (i < lines.length && lines[i].startsWith('> ')) {
-                    alertLines.push(lines[i].replace(/^>\s?/, ''));
+                    const content = lines[i].replace(/^>\s?/, '');
+
+                    // Also check for hidden instructions inside alert block (edge case)
+                    if (visibleUntilBlank !== undefined) {
+                        const innerMatch = content.match(/At\s+Blank\s*[:#-]?\s*\d+/i);
+                        // If there's an instruction inside the alert, we should technically count it.
+                        // But since we peek earlier, let's keep it simple: just break the inner loop 
+                        // if we find one so outer loop handles it.
+                        if (innerMatch) {
+                            if (instructionCount + 1 > visibleUntilBlank) {
+                                break;
+                            }
+                        }
+                    }
+
+                    alertLines.push(content);
                     i++;
                 }
+
+                // If we broke out of the inner loop due to finding a future instruction,
+                // we should also break out of the outer loop (checking if i is still within limits effectively covers this if we manipulated i, 
+                // but better check if we found a stopper).
+                // Actually, the inner break only exits the while loop for alerts. 
+                // We need to re-check if we should stop rendering entirely.
+                // Re-check the last processed line for the condition? 
+                // A simpler way: if the loop ended early or if the last line checked was the stopper.
+                // Let's iterate through alertLines and check.
+                // Better approach: filter valid lines first? No, let's keep it simple.
+                // If we found a future instruction in the alert block, we should probably not render this alert AT ALL if it starts with it?
+                // The prompt structure is usually:
+                // > [!NOTE]
+                // > **At Blank 2:** ...
+                // So if the FIRST line of the alert body is future, we skip the whole alert and break.
+
+                if (alertLines.length > 0 && visibleUntilBlank !== undefined) {
+                    const firstLineMatch = alertLines[0].match(/At\s+Blank\s*[:#-]?\s*\d+/i);
+                    // Instead of using parsed numbers, we peek at the first line. 
+                    // If it's an instruction, and we're strictly checking count,
+                    // we can't reliably predict its count position if we skip it.
+                    // But if it IS an instruction, the outer loop would have caught it 
+                    // if it wasn't swallowed by the alert inner loop.
+                    // Wait, the outer loop didn't catch it!
+                    // Let's increment instructionCount if it IS an instruction
+                    if (firstLineMatch) {
+                        if (instructionCount + 1 > visibleUntilBlank) {
+                            break; // Stop rendering completely
+                        }
+                    }
+                }
+
+
                 const colorMap: Record<string, string> = {
                     WARNING: 'bg-amber-950/30 border-amber-500 text-amber-200',
                     CAUTION: 'bg-red-950/30 border-red-500 text-red-200',
